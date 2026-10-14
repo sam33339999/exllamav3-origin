@@ -35,6 +35,7 @@ from .lfm2_moe import Lfm2MoeModel
 from .llama import LlamaModel
 from .mimo import MiMoModel
 from .mimo_v2 import MiMoV2Model
+from .minicpmv4_7 import MiniCPMV4_7TextModel
 from .minimax_m2 import MiniMaxM2Model
 from .ministral3 import Ministral3Model
 from .mistral import MistralModel
@@ -107,6 +108,7 @@ ARCHITECTURES = {
         LlamaModel,
         MiMoModel,
         MiMoV2Model,
+        MiniCPMV4_7TextModel,
         MiniMaxM2Model,
         Ministral3Model,
         MistralModel,

@@ -1351,16 +1351,50 @@ class Job:
         # Prepare MRoPE embeddings
         if self.embeddings and generator.model.caps.get("mrope"):
             ids = self.sequences[0].sequence_ids.torch()
-            freqs, offset = generator.model.g_rope.get_mrope_freqs(
-                ids,
-                self.embeddings,
-                ids.shape[-1]  # + self.max_new_tokens
-            )
-            self.alt_rope_freqs = freqs
-            self.alt_rope_offset = offset - ids.shape[-1]
+            self._assign_alt_rope(generator, ids, extend = False)
         else:
             self.alt_rope_freqs = None
             self.alt_rope_offset = 0
+
+
+    def _assign_alt_rope(self, generator, ids: torch.Tensor, extend: bool) -> None:
+        """Build the prefill MRoPE table.
+
+        Qwen stores one grid per image and ``get_mrope_freqs`` lays them out. MiniCPM stores
+        one finished canvas on the embedding. ``extend`` is the rewind path: generated tokens
+        past the prompt keep the decode offset and, for a canvas, continue as 1D positions.
+        """
+        canvases = [
+            emb for emb in self.embeddings
+            if getattr(emb, "prompt_mrope_pos_ids", None) is not None
+        ]
+        if canvases:
+            if len(canvases) != 1:
+                raise ValueError("Canvas MRoPE expects one embedding that carries the whole prompt")
+            canvas = canvases[0].prompt_mrope_pos_ids
+            prompt_len = canvas.shape[-1]
+            seq_len = ids.shape[-1]
+            if prompt_len != seq_len and not (extend and prompt_len < seq_len):
+                raise ValueError(
+                    f"Canvas length {prompt_len} does not match prompt length {seq_len}"
+                )
+            if prompt_len < seq_len:
+                delta = int(canvases[0].rope_delta)
+                tail = torch.arange(prompt_len, seq_len, dtype = torch.long) + delta
+                canvas = torch.cat((canvas, tail.unsqueeze(0).expand(3, -1)), dim = -1)
+            self.alt_rope_freqs = generator.model.g_rope.freqs_from_mrope_pos_ids(canvas)
+            if not extend:
+                self.alt_rope_offset = int(canvases[0].rope_delta)
+            return
+
+        freqs, offset = generator.model.g_rope.get_mrope_freqs(
+            ids,
+            self.embeddings,
+            ids.shape[-1]  # + self.max_new_tokens
+        )
+        self.alt_rope_freqs = freqs
+        if not extend:
+            self.alt_rope_offset = offset - ids.shape[-1]
 
 
     def current_new_pages_required(self):
@@ -1548,9 +1582,7 @@ class Job:
                     ids = seq.sequence_ids.torch()
                     # Appending text advances the next position and sequence length equally,
                     # leaving alt_rope_offset unchanged for decode
-                    self.alt_rope_freqs, _ = self.generator.model.g_rope.get_mrope_freqs(
-                        ids, self.embeddings, ids.shape[-1]
-                    )
+                    self._assign_alt_rope(self.generator, ids, extend = True)
 
                 params = {
                     "attn_mode": "flash_attn",

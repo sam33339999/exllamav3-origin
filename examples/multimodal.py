@@ -1,5 +1,5 @@
 import sys, os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from exllamav3 import Config, Model, Cache, Tokenizer, Generator, Job
 from PIL import Image
@@ -40,6 +40,9 @@ match mode:
     case "step37":
         prompt_format = "chatml"
         model_dir = "/mnt/str/models/step-3.7-flash/exl3/4.05bpw"
+    case "minicpmv47":
+        prompt_format = "chatml"
+        model_dir = "/mnt/str/models/minicpm-v-4.7-35b-a3b/"
 
 images = [
     # Cat
@@ -70,6 +73,47 @@ def get_image(file = None, url = None):
     elif url:
         return Image.open(requests.get(url, stream = True).raw)
 
+def run_minicpmv47(generator, vision_model, tokenizer, prompt_format):
+    # Slice rows and marker tokens do not fit one image placeholder, so the checkpoint
+    # processor builds the ids and the vision tower fills one canvas embedding.
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    content = [{"type": "image"} for _ in images]
+    content.append({"type": "text", "text": instruction})
+    messages.append({"role": "user", "content": content})
+    pil_images = [get_image(**img_args) for img_args in images]
+
+    prepared = vision_model.prepare_multimodal(
+        tokenizer = tokenizer,
+        messages = messages,
+        images = pil_images,
+    )
+    job = Job(
+        input_ids = prepared["input_ids"],
+        max_new_tokens = 1000 if streaming else 500,
+        decode_special_tokens = True,
+        stop_conditions = get_stop_conditions(prompt_format, tokenizer),
+        embeddings = prepared["embeddings"],
+    )
+    generator.enqueue(job)
+
+    print()
+    print(f"user: {instruction}", flush = True)
+    parts = []
+    while generator.num_remaining_jobs():
+        results = generator.iterate()
+        for result in results:
+            text = result.get("text", "")
+            parts.append(text)
+            if streaming:
+                print(text, end = "", flush = True)
+    if streaming:
+        print()
+    else:
+        print("".join(parts))
+
+
 def main():
 
     # Config for text and vision model
@@ -91,6 +135,10 @@ def main():
         cache = cache,
         tokenizer = tokenizer,
     )
+
+    if mode == "minicpmv47":
+        run_minicpmv47(generator, vision_model, tokenizer, prompt_format)
+        return
 
     # Process images
     image_embeddings = [

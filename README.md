@@ -214,6 +214,7 @@ python examples/chat.py -h
 | **Llama 1/2/3**,**3.1-Nemotron** etc.            | `LlamaForCausalLM` |  |  |
 | **MiMo-RL**                                      | `MiMoForCausalLM` |  |  |
 | **MiMo-V2.6-Flash**                              | `MiMoV2ForCausalLM` | ✓ | no audio |
+| **MiniCPM-V 4.7**                                | `MiniCPMV4_7ForConditionalGeneration` | ✓ |  |
 | **MiniMax-M2**                                   | `MiniMaxM2ForCausalLM` |  |  |
 | **Mistral**, **Ministral 3**, **Mistral-4** etc. | `MistralForCausalLM`<br>`Mistral3ForConditionalGeneration` | ✓ |  |
 | **Mixtral**                                      | `MixtralForCausalLM` |  |  |
