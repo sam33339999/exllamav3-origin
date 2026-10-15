@@ -374,6 +374,13 @@ def test_vision_graph_without_weights():
     assert all(module.q_proj.qmap == "block.attn.input" for module in attns)
     assert all(module.o_proj.qmap == "block.attn.o" for module in attns)
 
+    shape, dtype = model.default_load_shape_dtype(2048)
+    assert shape == (1, 3, 56, 56)
+    assert dtype == torch.half
+    load_params = model.default_load_params(2048)
+    assert torch.equal(load_params["target_sizes"], torch.tensor([[4, 4]]))
+    assert load_params["use_vit_merger"] is True
+
     merger = next(module for module in model.modules if module.key == "model.vision_tower.vit_merger")
     hidden = torch.randn(1, 16, 1152)
     target = torch.tensor([[4, 4]])

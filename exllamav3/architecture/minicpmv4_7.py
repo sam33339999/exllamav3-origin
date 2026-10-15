@@ -446,6 +446,26 @@ class MiniCPMV4_7VisionModel(Model):
             MiniCPMSpatialMerger(config, "model.merger"),
         ]
 
+    @override
+    def default_load_shape_dtype(self, chunk_size):
+        # Autosplit measures VRAM with one forward. The text default is a token
+        # row, which Conv2d rejects. Four patches on a side is the smallest grid
+        # the 2x2 window merger and the outer merger can both consume.
+        del chunk_size
+        v = self.config.vision
+        side = v.patch_size * 4
+        return (1, v.num_channels, side, side), torch.half
+
+    @override
+    def default_load_params(self, chunk_size):
+        del chunk_size
+        return {
+            "target_sizes": torch.tensor([[4, 4]], dtype = torch.long),
+            "use_vit_merger": True,
+            "causal": False,
+            "downsample_mode": self.config.vision.downsample_mode,
+        }
+
     def _encoder_block(self, config: MiniCPMV4_7Config, idx: int) -> TransformerBlock:
         v = config.vision
         key = f"model.vision_tower.encoder.layers.{idx}"
