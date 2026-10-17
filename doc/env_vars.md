@@ -345,11 +345,12 @@ samplers, optionally preceded by repetition/presence/frequency penalties) run as
 kernels working directly in logit space, instead of the step-by-step softmax/sort pipeline.
 Collapsed temperature/min-P stacks sample the same token as the uncollapsed reference for the
 same seed, up to float rounding at exact ties; top-K/top-P stacks keep the same token set as
-the sort-based reference (ties at the exact cutoff are all kept) but draw their Gumbel noise by
-token id rather than sorted position, so individual seeds map to different samples from the
-same distribution. Stacks the collapse does not recognize fall back to the step-by-step path by
-design. Set to `0` to disable collapsing entirely, e.g. for A/B validation against the
-reference implementation.
+the sort-based reference, except for ties at the exact cutoff (top-K keeps all of them, top-P
+keeps all of them at the combined weight of the ties the cumulative sum reaches), but draw
+their Gumbel noise by token id rather than sorted position, so individual seeds map to different
+samples from the same distribution. Stacks the collapse does not recognize fall back to the
+step-by-step path by design. Set to `0` to disable collapsing entirely, e.g. for A/B validation
+against the reference implementation.
 
 ## CPU MoE offload
 
@@ -963,6 +964,14 @@ traffic; for A/B testing of the wire rounding.
 Print a line (once per process) when the fp16 all-reduce wire first activates. Activation check
 for numerics A/B tests: whether the wire engages depends on the model's residual dtype, so a
 comparison is only meaningful if the fp16-wire run actually used it.
+
+### `EXL3_TP_REDUCE_MAX_ISA` (default: unset, auto-detect)
+
+`avx`, `avx2` or `avx512`: cap the CPU all-reduce of the native tensor-parallel backend at a
+lower instruction-set tier than the CPU supports, for exercising the lower tiers on a newer
+machine. The tiers compute the same sums (the AVX tier does its 16-bit moves on 128-bit lanes and
+its adds on 256-bit floats; the fp16 wire needs F16C on every tier). Plain AVX is the floor: a CPU
+without it must use the NCCL backend.
 
 ### `EXL3_TP_REDUCE_THREADS` (default: number of participating ranks)
 
