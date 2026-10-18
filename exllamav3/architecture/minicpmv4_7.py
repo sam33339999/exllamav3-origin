@@ -511,6 +511,7 @@ class MiniCPMV4_7VisionModel(Model):
         images,
         downsample_mode: str | None = None,
         add_generation_prompt: bool = True,
+        enable_thinking: bool | None = None,
     ) -> dict:
         """Run the checkpoint processor and the vision tower for one chat turn.
 
@@ -526,10 +527,14 @@ class MiniCPMV4_7VisionModel(Model):
             raise RuntimeError("Load the vision model before prepare_multimodal")
 
         processor = AutoProcessor.from_pretrained(self.config.directory)
+        template_kwargs = {}
+        if enable_thinking is not None:
+            template_kwargs["enable_thinking"] = enable_thinking
         text = processor.apply_chat_template(
             messages,
             tokenize = False,
             add_generation_prompt = add_generation_prompt,
+            **template_kwargs,
         )
         if isinstance(text, str):
             text = [text]
